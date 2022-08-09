@@ -66,6 +66,7 @@ import Codec.Xlsx.Types.Internal.FormulaData
 import Codec.Xlsx.Types.Internal.Relationships as Relationships
 import Codec.Xlsx.Types.Internal.SharedStringTable
 import Codec.Xlsx.Types.PivotTable.Internal
+import Codec.Xlsx.Types.SheetState as SheetState
 
 -- | Reads `Xlsx' from raw data (lazy bytestring)
 toXlsx :: L.ByteString -> Xlsx
@@ -112,11 +113,12 @@ toXlsxEitherBase parseSheet bs = do
   (wfs, names, cacheSources, dateBase) <- readWorkbook ar
   sheets <- forM wfs $ \wf -> do
       sheet <- parseSheet ar sst contentTypes cacheSources wf
-      return (wfName wf, sheet)
+      return (wfName wf, wsState wf, sheet)
   CustomProperties customPropMap <- getCustomProperties ar
   return $ Xlsx sheets (getStyles ar) names customPropMap dateBase
 
 data WorksheetFile = WorksheetFile { wfName :: Text
+                                   , wsState :: SheetState
                                    , wfPath :: FilePath
                                    }
                    deriving (Show, Generic)
@@ -653,7 +655,7 @@ readWorkbook ar = do
   sheets <-
     sequence $
     cur $/ element (n_ "sheets") &/ element (n_ "sheet") >=>
-    liftA2 (worksheetFile wbPath wbRels) <$> attribute "name" <*>
+    liftA3 (worksheetFile wbPath wbRels) <$> attribute "name" <*> fromAttributeDef "state" SheetState.Visible <*>
     fromAttribute (odr "id")
   let cacheRefs =
         cur $/ element (n_ "pivotCaches") &/ element (n_ "pivotCache") >=>
@@ -686,9 +688,9 @@ getTable ar fp = do
   cur <- xmlCursorRequired ar fp
   headErr (InvalidFile fp "Couldn't parse drawing") (fromCursor cur)
 
-worksheetFile :: FilePath -> Relationships -> Text -> RefId -> Parser WorksheetFile
-worksheetFile parentPath wbRels name rId =
-  WorksheetFile name <$> lookupRelPath parentPath wbRels rId
+worksheetFile :: FilePath -> Relationships -> Text -> SheetState -> RefId -> Parser WorksheetFile
+worksheetFile parentPath wbRels name visibility rId =
+  WorksheetFile name visibility <$> lookupRelPath parentPath wbRels rId
 
 getRels :: Zip.Archive -> FilePath -> Parser Relationships
 getRels ar fp = do

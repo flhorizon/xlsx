@@ -10,30 +10,23 @@ import Lens.Micro
 #else
 import Control.Lens
 #endif
-import Control.Monad.State.Lazy
 import Data.ByteString.Lazy (ByteString)
 import qualified Data.ByteString.Lazy as LB
-import Data.Map (Map)
 import Data.Maybe (listToMaybe)
 import qualified Data.Map as M
-import Data.Time.Clock.POSIX (POSIXTime)
-import qualified Data.Vector as V
+import Data.Maybe (isNothing, isJust)
 import qualified StreamTests
-import Text.RawString.QQ
 import Text.XML
 
 import Test.Tasty (defaultMain, testGroup)
 import Test.Tasty.HUnit (testCase)
 
-import Test.Tasty.HUnit ((@=?))
+import Test.Tasty.HUnit ((@=?),(@?=),(@?))
 import TestXlsx
 
 import Codec.Xlsx
 import Codec.Xlsx.Formatted
-import Codec.Xlsx.Types.Internal
-import Codec.Xlsx.Types.Internal.CommentTable
-import Codec.Xlsx.Types.Internal.CustomProperties as CustomProperties
-import Codec.Xlsx.Types.Internal.SharedStringTable
+import qualified Codec.Xlsx.Types.SheetState as SheetState
 
 import AutoFilterTests
 import Common
@@ -89,6 +82,31 @@ main = defaultMain $
         $ floatsParsingTests toXlsx
     , testCase "toXlsxFast: correct floats parsing (typed and untyped cells are floats by default)"
         $ floatsParsingTests toXlsxFast
+    , testGroup "sheets lenses and traversals" $
+      let getSheet n xlsx = xlsx ^. atSheet n
+          getVisibility n xlsx = xlsx ^. atSheet' n & fmap fst
+          xlsx' = testXlsx & atSheet "Abc" ?~ def & atSheet' "Def" ?~ (SheetState.Hidden, def)
+        in
+        [ testGroup "atSheet lens setter"
+            [ testCase "control: sheet not created yet" $
+                (testXlsx ^. atSheet "Abc" & isNothing) @? "should be Nothing"
+            , testCase "given Just, should create a new visible sheet" $
+                (testXlsx & atSheet "Abc" ?~ def & getVisibility "Abc") @?= Just SheetState.Visible
+            , testCase "control: sheet created" $
+                (xlsx' & getSheet "Abc" & isJust) @? "should be Just"
+            , testCase "given Nothing, should delete a sheet" $
+                (xlsx' & atSheet "Abc" .~ Nothing & getSheet "Abc" & isNothing) @? "should be Nothing"
+            ]
+        , testGroup "ixSheetState traversal"
+            [ testCase "should retrieve the state of an existing sheet" $ do
+                (xlsx' ^? ixSheetState "Def") @?= Just SheetState.Hidden
+                (xlsx' ^? ixSheetState "Xyz") @?= Nothing
+            , testCase "should set the state of an existing sheet" $
+                (xlsx' & ixSheetState "Def" .~ SheetState.VeryHidden & getVisibility "Def") @?= Just SheetState.VeryHidden
+            , testCase "should not set the state of an non-existent sheet" $
+                (xlsx' & ixSheetState "Xyz" .~ SheetState.VeryHidden & getVisibility "Xyz") @?= Nothing
+            ]
+        ]
     , CommonTests.tests
     , CondFmtTests.tests
     , PivotTableTests.tests
@@ -101,7 +119,7 @@ floatsParsingTests :: (ByteString -> Xlsx) -> IO ()
 floatsParsingTests parser = do
   bs <- LB.readFile "data/floats.xlsx"
   let xlsx = parser bs
-      parsedCells = maybe mempty ((^. wsCells) . snd) $ listToMaybe $ xlsx ^. xlSheets
+      parsedCells = maybe mempty (view (_3 . wsCells)) $ listToMaybe $ xlsx ^. xlSheets
       expectedCells = M.fromList
         [ ((1,1), def & cellValue ?~ CellDouble 12.0)
         , ((2,1), def & cellValue ?~ CellDouble 13.0)

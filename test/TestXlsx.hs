@@ -7,13 +7,13 @@
 module TestXlsx where
 
 #ifdef USE_MICROLENS
-import           Lens.Micro.Platform
+import Lens.Micro.Platform
 #else
 import Control.Lens
 #endif
 import Control.Monad.State.Lazy
 import Data.ByteString.Lazy (ByteString)
-import qualified Data.ByteString.Lazy as LB
+import qualified Data.List as L
 import Data.Map (Map)
 import qualified Data.Map as M
 import Data.Text (Text)
@@ -22,24 +22,15 @@ import qualified Data.Vector as V
 import Text.RawString.QQ
 import Text.XML
 
-import Test.Tasty (defaultMain, testGroup)
-import Test.Tasty.HUnit (testCase)
-
-import Test.Tasty.HUnit ((@=?))
-
 import Codec.Xlsx
 import Codec.Xlsx.Formatted
+import Codec.Xlsx.Types.SheetState as SheetState
 import Codec.Xlsx.Types.Internal
 import Codec.Xlsx.Types.Internal.CommentTable
 import Codec.Xlsx.Types.Internal.CustomProperties
        as CustomProperties
 import Codec.Xlsx.Types.Internal.SharedStringTable
 
-import AutoFilterTests
-import Common
-import CommonTests
-import CondFmtTests
-import Diff
 import PivotTableTests
 import DrawingTests
 
@@ -47,11 +38,13 @@ testXlsx :: Xlsx
 testXlsx = Xlsx sheets minimalStyles definedNames customProperties DateBase1904
   where
     sheets =
-      [ ("List1", sheet1)
-      , ("Another sheet", sheet2)
-      , ("with pivot table", pvSheet)
-      , ("cellrange DV source", foreignDvSourceSheet) -- "foreign" sheet holding validation data
-      , ("cellrange DV test", foreignDvTestSheet) -- applies validation using foreign cell ranges
+      [ ("List1", SheetState.Visible, sheet1)
+      , ("Another sheet", SheetState.Visible, sheet2)
+      , ("with pivot table", SheetState.Visible, pvSheet)
+      , ("cellrange DV source", SheetState.Visible, foreignDvSourceSheet) -- "foreign" sheet holding validation data
+      , ("cellrange DV test", SheetState.Visible, foreignDvTestSheet) -- applies validation using foreign cell ranges
+      , ("hidden sheet", SheetState.Hidden, def & cellValueAt (1,1) ?~ CellText "I'm hidden!")
+      , ("VERY hidden sheet", SheetState.VeryHidden, def & cellValueAt (1,1) ?~ CellText "I'm VERY hidden!!")
       ]
     sheet1 = Worksheet cols rowProps testCellMap1 drawing ranges
       sheetViews pageSetup cFormatting validations [] (Just autoFilter)
@@ -461,17 +454,18 @@ testFormatWorkbookResult :: Xlsx
 testFormatWorkbookResult = def & xlSheets .~ sheets
                                & xlStyles .~ renderStyleSheet style
   where
-    testCellMap1 = M.fromList [((1, 1), Cell { _cellStyle   = Nothing
-                                             , _cellValue   = Just (CellText "text at A1 Sheet1")
-                                             , _cellComment = Nothing
-                                             , _cellFormula = Nothing })]
-    testCellMap2 = M.fromList [((2, 3), Cell { _cellStyle   = Just 1
-                                             , _cellValue   = Just (CellDouble 1.23456)
-                                             , _cellComment = Nothing
-                                             , _cellFormula = Nothing })]
-    sheets = [ ("Sheet1", def & wsCells .~ testCellMap1)
-             , ("Sheet2", def & wsCells .~ testCellMap2)
-             ]
+    testCellMap1_ = M.fromList [((1, 1), Cell { _cellStyle   = Nothing
+                                              , _cellValue   = Just (CellText "text at A1 Sheet1")
+                                              , _cellComment = Nothing
+                                              , _cellFormula = Nothing })]
+    testCellMap2_ = M.fromList [((2, 3), Cell { _cellStyle   = Just 1
+                                              , _cellValue   = Just (CellDouble 1.23456)
+                                              , _cellComment = Nothing
+                                              , _cellFormula = Nothing })]
+    sheets = L.map (\(n, ws) -> (n, SheetState.Visible, ws)) $
+                [ ("Sheet1", def & wsCells .~ testCellMap1_)
+                , ("Sheet2", def & wsCells .~ testCellMap2_)
+                ]
     style = minimalStyleSheet & styleSheetNumFmts .~ M.fromList [(164, "DD.MM.YYYY")]
                               & styleSheetCellXfs .~ [cellXf1, cellXf2]
     cellXf1 = def

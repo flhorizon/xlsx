@@ -245,6 +245,8 @@ formatted cs styleSheet =
         , formattedMerges     = reverse (finalSt ^. formattingMerges)
         }
 
+-- | Build an 'Xlsx', render provided cells as per the 'StyleSheet'.
+-- Sheets ST_State is visible by default.
 formatWorkbook :: [(Text, Map (Int, Int) FormattedCell)] -> StyleSheet -> Xlsx
 formatWorkbook nfcss initStyle = extract go
   where
@@ -254,6 +256,7 @@ formatWorkbook nfcss initStyle = extract go
         cs' <- forM (M.toList fcs) $ \(rc, fc) -> formatCell rc fc
         merges <- reverse . _formattingMerges <$> get
         return ( name
+               , Visible
                , def & wsCells  .~ M.fromList (concat cs')
                      & wsMerges .~ merges)
     extract (sheets, st) =

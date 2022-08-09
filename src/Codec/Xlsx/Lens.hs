@@ -2,11 +2,16 @@
 {-# LANGUAGE RankNTypes   #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE ViewPatterns #-}
+{-# LANGUAGE TupleSections #-}
 
 -- | lenses to access sheets, cells and values of 'Xlsx'
 module Codec.Xlsx.Lens
   ( ixSheet
+  , ixSheet'
+  , ixSheetState
   , atSheet
+  , atSheet'
   , ixCell
   , ixCellRC
   , ixCellXY
@@ -27,49 +32,93 @@ import Lens.Micro.GHC ()
 import Control.Lens
 #endif
 import Data.Function (on)
-import Data.List (deleteBy)
+import Data.List as L (deleteBy, find)
+import Data.Maybe (fromMaybe)
 import Data.Text
 import Data.Tuple (swap)
 import GHC.Generics (Generic)
+import Codec.Xlsx.Types.SheetState as SheetState (SheetState(..))
+import Prelude hiding (lookup)
 
-newtype SheetList = SheetList{ unSheetList :: [(Text, Worksheet)] }
+newtype SheetList = SheetList{ unSheetList :: [(Text, SheetState, Worksheet)] }
     deriving (Eq, Show, Generic)
 
-type instance IxValue (SheetList) = Worksheet
+type instance IxValue (SheetList) = (SheetState, Worksheet)
 type instance Index (SheetList) = Text
 
 instance Ixed SheetList where
     ix k f sl@(SheetList l) = case lookup k l of
-        Just v  -> f v <&> \v' -> SheetList (upsert k v' l)
+        Just v2  -> f v2 <&> \v2' -> SheetList (upsert k v2' l)
         Nothing -> pure sl
     {-# INLINE ix #-}
 
 instance At SheetList where
-  at k f (SheetList l) = f mv <&> \r -> case r of
-      Nothing -> SheetList $ maybe l (\v -> deleteBy ((==) `on` fst) (k,v) l) mv
-      Just v' -> SheetList $ upsert k v' l
+  at k f (SheetList l) = f mv2 <&> \r -> case r of
+      Nothing -> SheetList $ maybe l (\v2 -> deleteBy ((==) `on` view _1) (t2to3 k v2) l) mv2
+      Just v2' -> SheetList $ upsert k v2' l
     where
-      mv = lookup k l
+      mv2 = lookup k l
   {-# INLINE at #-}
 
-upsert :: (Eq k) => k -> v -> [(k,v)] -> [(k,v)]
-upsert k v [] = [(k,v)]
-upsert k v ((k1,v1):r) =
-    if k == k1
-    then (k,v):r
-    else (k1,v1):upsert k v r
+t2to3 :: k -> (v, v') -> (k, v, v')
+t2to3 k = uncurry (k,,)
+{-# INLINE t2to3 #-}
 
--- | lens giving access to a worksheet from 'Xlsx' object
--- by its name
+t3to2 :: (k, v, v') -> (v, v')
+t3to2 (_, v, v') = (v, v')
+{-# INLINE t3to2 #-}
+
+lookup :: (Eq k) => k -> [(k, v, v')] -> Maybe (v, v')
+lookup k l = L.find (views _1 (== k)) l <&> t3to2
+
+upsert :: (Eq k) => k -> (v, v') -> [(k, v, v')] -> [(k, v, v')]
+upsert k v2 [] = [t2to3 k v2]
+upsert k v2 (t3@(view _1 -> k'):r) =
+    if k == k'
+    then t2to3 k v2:r
+    else t3:upsert k v2 r
+
+sheetList :: Iso' [(Text, SheetState, Worksheet)] SheetList
+sheetList = iso SheetList unSheetList
+
+-- | Traversal giving access to a worksheet from 'Xlsx' object
+-- by its name.
+--
+-- > xlsx ^? ixSheet "my sheet" & fromJust
+-- > (xlsx & ixSheet "doesn't exist" .~ newWs) == xlsx
+-- > (xlsx & ixSheet "exists" .~ newWs) /= xlsx
 ixSheet :: Text -> Traversal' Xlsx Worksheet
-ixSheet s = xlSheets . \f -> fmap unSheetList . ix s f . SheetList
+ixSheet s = ixSheet' s . _2
+
+-- | Traversal to the worksheet's visibility state.
+ixSheetState :: Text -> Traversal' Xlsx SheetState
+ixSheetState s = ixSheet' s . _1
+
+-- | Traversal to the worksheet and its visibility state.
+ixSheet' :: Text -> Traversal' Xlsx (SheetState, Worksheet)
+ixSheet' s = xlSheets . sheetList . ix s
 
 -- | 'Control.Lens.At' variant of 'ixSheet' lens
 --
 -- /Note:/ if there is no such sheet in this workbook then new sheet will be
--- added as the last one to the sheet list
+-- added as the last one to the sheet list; set Nothing to delete
+--
+-- > sans "some sheet" xlsx ≡ at "some sheet" .~ Nothing xlsx {- delete -}
+-- > xlsx & at "some sheet" ?~ worksheet {- upsert -}
 atSheet :: Text -> Lens' Xlsx (Maybe Worksheet)
-atSheet s = xlSheets . \f -> fmap unSheetList . at s f . SheetList
+atSheet s = lens viewSheet setSheet
+  where
+    viewSheet :: Xlsx -> Maybe Worksheet
+    viewSheet = views (atSheet' s) (fmap snd)
+    setSheet :: Xlsx -> Maybe Worksheet -> Xlsx
+    setSheet xlsx ws =
+      let state = views (atSheet' s) (fmap fst) xlsx & fromMaybe SheetState.Visible
+          pair = (state,) <$> ws
+          in set (atSheet' s) pair xlsx
+
+-- | lens to the worksheet and its visibility state
+atSheet' :: Text -> Lens' Xlsx (Maybe (SheetState, Worksheet))
+atSheet' s = xlSheets . sheetList . at s
 
 -- | lens giving access to a cell in some worksheet
 -- by its position, by default row+column index is used
