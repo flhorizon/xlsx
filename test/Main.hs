@@ -11,6 +11,7 @@ import Data.ByteString.Lazy (ByteString)
 import qualified Data.ByteString.Lazy as LB
 import Data.Map (Map)
 import qualified Data.Map as M
+import Data.Maybe (isNothing, isJust)
 import Data.Time.Clock.POSIX (POSIXTime)
 import qualified Data.Vector as V
 import Text.RawString.QQ
@@ -19,7 +20,7 @@ import Text.XML
 import Test.Tasty (defaultMain, testGroup)
 import Test.Tasty.HUnit (testCase)
 
-import Test.Tasty.HUnit ((@=?))
+import Test.Tasty.HUnit ((@=?),(@?=),(@?))
 
 import Codec.Xlsx
 import Codec.Xlsx.Formatted
@@ -28,6 +29,7 @@ import Codec.Xlsx.Types.Internal.CommentTable
 import Codec.Xlsx.Types.Internal.CustomProperties
        as CustomProperties
 import Codec.Xlsx.Types.Internal.SharedStringTable
+import qualified Codec.Xlsx.Types.SheetState as SheetState
 
 import AutoFilterTests
 import Common
@@ -72,6 +74,20 @@ main = defaultMain $
         Right testXlsx @==? toXlsxEither (fromXlsx testTime testXlsx)
     , testCase "toXlsxEither: invalid format" $
         Left InvalidZipArchive @==? toXlsxEither "this is not a valid XLSX file"
+    , testGroup "atSheet lens setter" $
+      let getSheet n xlsx = xlsx ^. atSheet n
+          getVisibility n xlsx = xlsx ^. atSheet' n & fmap fst
+          xlsx' = testXlsx & atSheet "Abc" ?~ def
+        in
+          [ testCase "control: sheet not created yet" $
+              (testXlsx ^. atSheet "Abc" & isNothing) @? "should be Nothing"
+          , testCase "given Just, should create a new visible sheet" $
+              (testXlsx & atSheet "Abc" ?~ def & getVisibility "Abc") @?= Just SheetState.Visible
+          , testCase "control: sheet created" $
+              (xlsx' & getSheet "Abc" & isJust) @? "should be Just"
+          , testCase "given Nothing, should delete a sheet" $
+              (xlsx' & atSheet "Abc" .~ Nothing & getSheet "Abc" & isNothing) @? "should be Nothing"
+          ]
     , CommonTests.tests
     , CondFmtTests.tests
     , PivotTableTests.tests
@@ -83,7 +99,8 @@ testXlsx :: Xlsx
 testXlsx = Xlsx sheets minimalStyles definedNames customProperties DateBase1904
   where
     sheets =
-      [("List1", sheet1), ("Another sheet", sheet2), ("with pivot table", pvSheet)]
+      map (\(n, ws) -> (n, SheetState.Visible, ws))
+        [("List1", sheet1), ("Another sheet", sheet2), ("with pivot table", pvSheet), ("cellrange DV source", cellRangeDvSheet)]
     sheet1 = Worksheet cols rowProps testCellMap1 drawing ranges
       sheetViews pageSetup cFormatting validations [] (Just autoFilter)
       tables (Just protection) sharedFormulas
@@ -113,6 +130,7 @@ testXlsx = Xlsx sheets minimalStyles definedNames customProperties DateBase1904
       , _sprLegacyPassword = Just $ legacyPassword "hard password"
       }
     sheet2 = def & wsCells .~ testCellMap2
+    cellRangeDvSheet = def & wsCells .~ cellRangeTestCellMap
     pvSheet = sheetWithPvCells & wsPivotTables .~ [testPivotTable]
     sheetWithPvCells = def & wsCells .~ testPivotSrcCells
     rowProps = M.fromList [(1, RowProps { rowHeight       = Just (CustomHeight 50)
@@ -200,6 +218,18 @@ testCellMap1 = M.fromList [ ((1, 2), cd1_2), ((1, 5), cd1_5), ((1, 10), cd1_10)
     cd5_3 = def & cellFormula ?~ sharedFormulaByIndex (SharedFormulaIndex 0)
     cd6_2 = def & cellFormula ?~ sharedFormulaByIndex (SharedFormulaIndex 1)
     cd6_3 = def & cellFormula ?~ sharedFormulaByIndex (SharedFormulaIndex 1)
+
+cellRangeTestCellMap :: CellMap
+cellRangeTestCellMap = M.fromList [ ((1, 1), def & cellValue ?~ CellText "A-A-A")
+                                    , ((2, 1), def & cellValue ?~ CellText "B-B-B")
+                                    , ((1, 2), def & cellValue ?~ CellText "C-C-C")
+                                    , ((2, 2), def & cellValue ?~ CellText "D-D-D")
+                                    , ((1, 3), def & cellValue ?~ CellDouble 6)
+                                    , ((2, 3), def & cellValue ?~ CellDouble 7)
+                                    , ((3, 1), def & cellValue ?~ CellDouble 5)
+                                    , ((3, 2), def & cellValue ?~ CellText "numbers!")
+                                    , ((3, 3), def & cellValue ?~ CellDouble 5)
+                                  ]
 
 testCellMap2 :: CellMap
 testCellMap2 = M.fromList [ ((1, 2), def & cellValue ?~ CellText "something here")
@@ -502,7 +532,20 @@ validations = M.fromList
         , _dvShowDropDown     = True
         , _dvShowErrorMessage = True
         , _dvShowInputMessage = True
-        , _dvValidationType   = ValidationTypeList ["aaaa","bbbb","cccc"]
+        , _dvValidationType   = ValidationTypeList $ ListExpression ["aaaa","bbbb","cccc"]
+        }
+      )
+      , ( SqRef [CellRef "E50:E55"], def
+        { _dvAllowBlank       = True
+        , _dvError            = Just "incorrect data"
+        , _dvErrorStyle       = ErrorStyleInformation
+        , _dvErrorTitle       = Just "error title"
+        , _dvPrompt           = Just "Input kebab string"
+        , _dvPromptTitle      = Just "I love kebab-case"
+        , _dvShowDropDown     = True
+        , _dvShowErrorMessage = True
+        , _dvShowInputMessage = True
+        , _dvValidationType   = ValidationTypeList $ RangeExpression $ CellRef "'cellrange DV source'!$A$1:$B$2"
         }
       )
     , ( SqRef [CellRef "A6", CellRef "I2"], def
