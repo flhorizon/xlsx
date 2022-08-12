@@ -10,16 +10,11 @@ import Lens.Micro
 #else
 import Control.Lens
 #endif
-import Control.Monad.State.Lazy
 import Data.ByteString.Lazy (ByteString)
 import qualified Data.ByteString.Lazy as LB
-import Data.Map (Map)
 import Data.Maybe (listToMaybe)
 import qualified Data.Map as M
-import Data.Time.Clock.POSIX (POSIXTime)
-import qualified Data.Vector as V
 import qualified StreamTests
-import Text.RawString.QQ
 import Text.XML
 
 import Test.Tasty (defaultMain, testGroup)
@@ -30,10 +25,6 @@ import TestXlsx
 
 import Codec.Xlsx
 import Codec.Xlsx.Formatted
-import Codec.Xlsx.Types.Internal
-import Codec.Xlsx.Types.Internal.CommentTable
-import Codec.Xlsx.Types.Internal.CustomProperties as CustomProperties
-import Codec.Xlsx.Types.Internal.SharedStringTable
 
 import AutoFilterTests
 import Common

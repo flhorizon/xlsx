@@ -12,7 +12,6 @@ module Codec.Xlsx.Parser.Internal.Memoize
   ) where
 
 import Control.Applicative as A
-import Control.Monad (join)
 import Control.Monad.IO.Class
 import Data.IORef
 import Control.Exception

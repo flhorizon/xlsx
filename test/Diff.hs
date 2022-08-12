@@ -1,6 +1,6 @@
 module Diff where
 
-import           Data.Algorithm.Diff       (Diff (..), getGroupedDiff)
+import           Data.Algorithm.Diff       (getGroupedDiff)
 import           Data.Algorithm.DiffOutput (ppDiff)
 import           Data.Monoid               ((<>))
 import           Test.Tasty.HUnit          (Assertion, assertBool)

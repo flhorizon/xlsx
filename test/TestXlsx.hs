@@ -13,18 +13,12 @@ import Control.Lens
 #endif
 import Control.Monad.State.Lazy
 import Data.ByteString.Lazy (ByteString)
-import qualified Data.ByteString.Lazy as LB
 import Data.Map (Map)
 import qualified Data.Map as M
 import Data.Time.Clock.POSIX (POSIXTime)
 import qualified Data.Vector as V
 import Text.RawString.QQ
 import Text.XML
-
-import Test.Tasty (defaultMain, testGroup)
-import Test.Tasty.HUnit (testCase)
-
-import Test.Tasty.HUnit ((@=?))
 
 import Codec.Xlsx
 import Codec.Xlsx.Formatted
@@ -34,11 +28,6 @@ import Codec.Xlsx.Types.Internal.CustomProperties
        as CustomProperties
 import Codec.Xlsx.Types.Internal.SharedStringTable
 
-import AutoFilterTests
-import Common
-import CommonTests
-import CondFmtTests
-import Diff
 import PivotTableTests
 import DrawingTests
 
@@ -224,7 +213,8 @@ withDoubleUnderline = withUnderline FontUnderlineDouble
 withUnderline :: FontUnderline -> SharedStringTable -> SharedStringTable
 withUnderline u (SharedStringTable [text, XlsxRichText [rich1, RichTextRun (Just props) val]]) =
     let newprops = props & runPropertiesUnderline .~ Just u  
-    in SharedStringTable [text, XlsxRichText [rich1, RichTextRun (Just newprops) val]] 
+    in SharedStringTable [text, XlsxRichText [rich1, RichTextRun (Just newprops) val]]
+withUnderline _ _ = error "withUnderline: unexpected pattern"
 
 testSharedStringTable :: SharedStringTable
 testSharedStringTable = SharedStringTable $ V.fromList items
@@ -439,16 +429,16 @@ testFormatWorkbookResult :: Xlsx
 testFormatWorkbookResult = def & xlSheets .~ sheets
                                & xlStyles .~ renderStyleSheet style
   where
-    testCellMap1 = M.fromList [((1, 1), Cell { _cellStyle   = Nothing
+    testCellMap1_ = M.fromList [((1, 1), Cell { _cellStyle   = Nothing
                                              , _cellValue   = Just (CellText "text at A1 Sheet1")
                                              , _cellComment = Nothing
                                              , _cellFormula = Nothing })]
-    testCellMap2 = M.fromList [((2, 3), Cell { _cellStyle   = Just 1
+    testCellMap2_ = M.fromList [((2, 3), Cell { _cellStyle   = Just 1
                                              , _cellValue   = Just (CellDouble 1.23456)
                                              , _cellComment = Nothing
                                              , _cellFormula = Nothing })]
-    sheets = [ ("Sheet1", def & wsCells .~ testCellMap1)
-             , ("Sheet2", def & wsCells .~ testCellMap2)
+    sheets = [ ("Sheet1", def & wsCells .~ testCellMap1_)
+             , ("Sheet2", def & wsCells .~ testCellMap2_)
              ]
     style = minimalStyleSheet & styleSheetNumFmts .~ M.fromList [(164, "DD.MM.YYYY")]
                               & styleSheetCellXfs .~ [cellXf1, cellXf2]
