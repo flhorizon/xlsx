@@ -239,7 +239,8 @@ withDoubleUnderline = withUnderline FontUnderlineDouble
 withUnderline :: FontUnderline -> SharedStringTable -> SharedStringTable
 withUnderline u (SharedStringTable [text, XlsxRichText [rich1, RichTextRun (Just props) val]]) =
     let newprops = props & runPropertiesUnderline .~ Just u  
-    in SharedStringTable [text, XlsxRichText [rich1, RichTextRun (Just newprops) val]] 
+    in SharedStringTable [text, XlsxRichText [rich1, RichTextRun (Just newprops) val]]
+withUnderline _ _ = error "expecting withUnderline"
 
 testSharedStringTable :: SharedStringTable
 testSharedStringTable = SharedStringTable $ V.fromList items

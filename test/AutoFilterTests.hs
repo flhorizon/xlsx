@@ -5,7 +5,6 @@ module AutoFilterTests
   ( tests
   ) where
 
-import Test.SmallCheck.Series
 import Test.Tasty (testGroup, TestTree)
 import Test.Tasty.SmallCheck (testProperty)
 

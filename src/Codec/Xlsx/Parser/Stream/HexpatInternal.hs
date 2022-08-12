@@ -1,4 +1,6 @@
-{-
+{-# OPTIONS_GHC -fno-warn-name-shadowing #-} -- won't fix vendored code warnings
+
+{-|
 Under BSD 3-Clause license, (c) 2009 Doug Beardsley <mightybyte@gmail.com>, (c) 2009-2012 Stephen Blackheath <http://blacksapphire.com/antispam/>, (c) 2009 Gregory Collins, (c) 2008 Evan Martin <martine@danga.com>, (c) 2009 Matthew Pocock <matthew.pocock@ncl.ac.uk>, (c) 2007-2009 Galois Inc., (c) 2010 Kevin Jardine, (c) 2012 Simon Hengel
 
 From https://hackage.haskell.org/package/hexpat-0.20.13
