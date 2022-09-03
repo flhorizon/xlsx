@@ -13,7 +13,6 @@ module Codec.Xlsx.Parser.Internal.Memoize
 
 import Control.Applicative as A
 import Control.Exception
-import Control.Monad (join)
 import Control.Monad.IO.Class
 import Data.IORef
 

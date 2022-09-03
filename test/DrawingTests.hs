@@ -114,7 +114,7 @@ testDrawing = Drawing [anchor1, anchor2]
       Graphic
       { _grNonVisual = nonVis2
       , _grChartSpace = RefId "rId2"
-      , _grTransform = transform
+      , _grTransform = transform2d
       }
     nonVis2 =
       GraphNonVisual $
@@ -125,7 +125,7 @@ testDrawing = Drawing [anchor1, anchor2]
       , _nvdpHidden = False
       , _nvdpTitle = Nothing
       }
-    transform =
+    transform2d =
       Transform2D
       { _trRot = Angle 0
       , _trFlipH = False

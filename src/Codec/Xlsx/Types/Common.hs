@@ -82,9 +82,7 @@ import Codec.Xlsx.Writer.Internal
 #ifdef USE_MICROLENS
 import Data.Profunctor (dimap)
 import Data.Profunctor.Choice
-import Lens.Micro
 import Lens.Micro.GHC ()
-import Lens.Micro.Internal
 #else
 import Control.Lens (makePrisms)
 #endif
@@ -269,14 +267,14 @@ type Range = CellRef
 --
 -- > mkRange (2, 4) (6, 8) == CellRef "D2:H6"
 mkRange :: (Int, Int) -> (Int, Int) -> Range
-mkRange fr to = CellRef $ T.concat [singleCellRefRaw fr, ":", singleCellRefRaw to]
+mkRange start end = CellRef $ T.concat [singleCellRefRaw start, ":", singleCellRefRaw end]
 
 -- | Render range with possibly absolute coordinates
 --
 -- > mkRange' (Abs 2, Abs 4) (6, 8) == CellRef "$D$2:H6"
 mkRange' :: (Coord,Coord) -> (Coord,Coord) -> Range
-mkRange' fr to =
-  CellRef $ T.concat [singleCellRefRaw' fr, ":", singleCellRefRaw' to]
+mkRange' start end =
+  CellRef $ T.concat [singleCellRefRaw' start, ":", singleCellRefRaw' end]
 
 -- | Render a cell range existing in another worksheet.
 -- This function always renders the sheet name single-quoted regardless the presence of spaces.
@@ -284,8 +282,8 @@ mkRange' fr to =
 --
 -- > mkForeignRange "MyOtherSheet" (Rel 2, Rel 4) (Abs 6, Abs 8) == "'MyOtherSheet'!D2:$H$6"
 mkForeignRange :: Text -> CellCoord -> CellCoord -> Range
-mkForeignRange sheetName fr to =
-    case mkRange' fr to of
+mkForeignRange sheetName start end =
+    case mkRange' start end of
       CellRef cr -> CellRef $ T.concat [escapeRefSheetName sheetName, "!", cr]
 
 -- | Converse function to 'mkRange' ignoring absolute coordinates.
@@ -301,7 +299,7 @@ fromRange' t' = parseRange =<< ignoreRefSheetName (unCellRef t')
   where
     parseRange t =
       case T.split (== ':') t of
-        [from, to] -> liftA2 (,) (fromSingleCellRefRaw' from) (fromSingleCellRefRaw' to)
+        [start, end] -> liftA2 (,) (fromSingleCellRefRaw' start) (fromSingleCellRefRaw' end)
         _ -> Nothing
 
 -- | Converse function to 'mkForeignRange'.

@@ -80,7 +80,6 @@ import Lens.Micro
 import Lens.Micro.GHC ()
 import Lens.Micro.Mtl
 import Lens.Micro.Platform
-import Lens.Micro.TH
 #else
 import Control.Lens
 #endif

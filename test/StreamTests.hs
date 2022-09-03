@@ -11,7 +11,7 @@ module StreamTests
 
 import Data.List (unwords)
 #ifdef USE_MICROLENS
-import Test.Tasty (TestName, TestTree, testGroup)
+import Test.Tasty (TestTree, testGroup)
 #else
 import Codec.Xlsx
 import Codec.Xlsx.Parser.Stream
